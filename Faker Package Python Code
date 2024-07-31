@@ -1,0 +1,174 @@
+import pandas as pd
+import numpy as np
+from faker import Faker
+from datetime import datetime, timedelta
+import random
+
+# Initialize Faker
+fake = Faker('en_US')
+
+# Constants
+num_branches = 20
+employees_per_branch = 7
+num_care_agents = 50
+num_customers = 10000
+num_calls = 500000  # total number of call records
+num_billing_records = 100000
+num_service_usage_records = 200000
+
+# Generate Branch Data
+def generate_branch_data(num_branches, employees_per_branch):
+    branches = []
+    employees = []
+    for branch_id in range(num_branches):
+        branch_code = f"B{branch_id + 1:02d}"
+        branch_name = fake.city()
+        
+        branches.append({
+            "branchID": branch_code,
+            "branchName": branch_name,
+            "branchLocation": fake.address(),
+        })
+        
+        # Generate employees for each branch
+        for emp_id in range(employees_per_branch):
+            employees.append({
+                "employeeID": f"E{branch_id * employees_per_branch + emp_id + 1:03d}",
+                "employeeName": fake.name(),
+                "employeeEmail": fake.email(),
+                "branchID": branch_code,
+                "role": "Branch Staff"
+            })
+    
+    return branches, employees
+
+# Generate Customer Care Employees
+def generate_customer_care_agents(num_agents):
+    agents = []
+    for agent_id in range(num_agents):
+        agents.append({
+            "employeeID": f"CC{agent_id + 1:03d}",
+            "employeeName": fake.name(),
+            "employeeEmail": fake.email(),
+            "branchID": "HQ",
+            "role": "Customer Care Agent"
+        })
+    return agents
+
+# Generate Customer Data
+def generate_customers(num_customers):
+    customers = []
+    for cust_id in range(num_customers):
+        customers.append({
+            "customerID": f"C{cust_id + 1:05d}",
+            "customerName": fake.name(),
+            "phoneNumber": fake.phone_number(),
+            "email": fake.email(),
+            "registrationDate": fake.date_between(start_date='-8y', end_date='today'),
+            "location": fake.city(),
+            "branchID": f"B{random.randint(1, num_branches):02d}"
+        })
+    return customers
+
+# Generate Call Records
+def generate_call_records(num_calls, customers, agents, start_date, end_date):
+    call_records = []
+    customer_ids = [c['customerID'] for c in customers]
+    agent_ids = [a['employeeID'] for a in agents]
+    
+    for _ in range(num_calls):
+        call_date = fake.date_time_between(start_date=start_date, end_date=end_date)
+        call_duration = random.randint(1, 60)  # in minutes
+        called_to_care = random.choice([True, False])
+        
+        if called_to_care:
+            agent_id = random.choice(agent_ids)
+            branch_id = "HQ"
+        else:
+            agent_id = None
+            branch_id = random.choice([c['branchID'] for c in customers])
+        
+        call_records.append({
+            "callID": fake.uuid4(),
+            "customerID": random.choice(customer_ids),
+            "callDate": call_date,
+            "callDuration": call_duration,
+            "calledToCustomerCare": called_to_care,
+            "agentID": agent_id,
+            "branchID": branch_id
+        })
+    
+    return call_records
+
+# Generate Billing Data
+def generate_billing_data(num_billing_records, customers, start_date, end_date):
+    billing_records = []
+    customer_ids = [c['customerID'] for c in customers]
+    
+    for _ in range(num_billing_records):
+        bill_date = fake.date_time_between(start_date=start_date, end_date=end_date)
+        amount = round(random.uniform(5.0, 100.0), 2)
+        billing_records.append({
+            "billID": fake.uuid4(),
+            "customerID": random.choice(customer_ids),
+            "billDate": bill_date,
+            "amount": amount,
+            "paid": random.choice([True, False]),
+            "paymentMethod": random.choice(["M-Pesa", "Airtel Money", "Credit Card", "Cash"])
+        })
+    
+    return billing_records
+
+# Generate Service Usage Data
+def generate_service_usage_data(num_service_usage_records, customers, start_date, end_date):
+    service_usage_records = []
+    customer_ids = [c['customerID'] for c in customers]
+    services = ["Voice", "Data", "SMS", "Roaming", "Value-added Services"]
+    
+    for _ in range(num_service_usage_records):
+        usage_date = fake.date_time_between(start_date=start_date, end_date=end_date)
+        service_type = random.choice(services)
+        usage_amount = random.randint(1, 500)
+        
+        service_usage_records.append({
+            "usageID": fake.uuid4(),
+            "customerID": random.choice(customer_ids),
+            "usageDate": usage_date,
+            "serviceType": service_type,
+            "usageAmount": usage_amount
+        })
+    
+    return service_usage_records
+
+# Generate Data
+branches, branch_employees = generate_branch_data(num_branches, employees_per_branch)
+customer_care_agents = generate_customer_care_agents(num_care_agents)
+employees = branch_employees + customer_care_agents
+customers = generate_customers(num_customers)
+
+# Define start and end dates
+start_date = datetime(2016, 1, 1)
+end_date = datetime(2024, 12, 31)
+
+call_records = generate_call_records(num_calls, customers, customer_care_agents, start_date, end_date)
+billing_data = generate_billing_data(num_billing_records, customers, start_date, end_date)
+service_usage_data = generate_service_usage_data(num_service_usage_records, customers, start_date, end_date)
+
+# Convert to DataFrames
+df_branches = pd.DataFrame(branches)
+df_employees = pd.DataFrame(employees)
+df_customers = pd.DataFrame(customers)
+df_call_records = pd.DataFrame(call_records)
+df_billing_data = pd.DataFrame(billing_data)
+df_service_usage = pd.DataFrame(service_usage_data)
+
+# Save to Excel
+with pd.ExcelWriter("/John Data/kensatel_data.xlsx") as writer:
+    df_branches.to_excel(writer, sheet_name="Branches", index=False)
+    df_employees.to_excel(writer, sheet_name="Employees", index=False)
+    df_customers.to_excel(writer, sheet_name="Customers", index=False)
+    df_call_records.to_excel(writer, sheet_name="CallRecords", index=False)
+    df_billing_data.to_excel(writer, sheet_name="BillingData", index=False)
+    df_service_usage.to_excel(writer, sheet_name="ServiceUsage", index=False)
+
+df_branches.head(), df_employees.head(), df_customers.head()
